@@ -1,0 +1,189 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Minha Playlist</title>
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600&family=DM+Serif+Display&display=swap" rel="stylesheet">
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  :root {
+    --bg: #0d0d0d; --surface: #181818; --surface2: #222;
+    --border: rgba(255,255,255,0.08); --border-hover: rgba(255,255,255,0.18);
+    --text: #f0ede8; --muted: #888882; --accent: #e8c87a; --radius: 12px;
+  }
+  body { font-family: 'DM Sans', sans-serif; background: var(--bg); color: var(--text); min-height: 100vh; }
+  header { padding: 3rem 2rem 2rem; max-width: 1200px; margin: 0 auto; border-bottom: 1px solid var(--border); }
+  header h1 { font-family: 'DM Serif Display', serif; font-size: clamp(2rem,5vw,3.5rem); font-weight: 400; letter-spacing: -0.02em; line-height: 1.1; }
+  header h1 span { color: var(--accent); }
+  header p { margin-top: .75rem; color: var(--muted); font-size: .95rem; }
+  .layout { display: grid; grid-template-columns: 1fr 340px; max-width: 1200px; margin: 0 auto; min-height: calc(100vh - 140px); }
+  @media(max-width:900px){ .layout{grid-template-columns:1fr} .sidebar{border-left:none!important;border-top:1px solid var(--border)} }
+  .player-area { padding: 2rem; }
+  .player-wrap { position: relative; width: 100%; aspect-ratio: 16/9; background: #000; border-radius: var(--radius); overflow: hidden; }
+  .player-wrap iframe { width: 100%; height: 100%; border: none; display: block; }
+  .fallback { display: none; position: absolute; inset: 0; flex-direction: column; align-items: center; justify-content: center; text-decoration: none; background: #111; }
+  .fallback-bg { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; opacity: .35; }
+  .fallback-content { position: relative; z-index: 2; display: flex; flex-direction: column; align-items: center; gap: 1rem; text-align: center; padding: 1.5rem; }
+  .fallback-play { width: 68px; height: 68px; background: rgba(232,200,122,.92); border-radius: 50%; display: flex; align-items: center; justify-content: center; transition: transform .15s, background .15s; }
+  .fallback:hover .fallback-play { transform: scale(1.1); background: var(--accent); }
+  .fallback-play svg { width: 30px; height: 30px; fill: #1a1200; margin-left: 4px; }
+  .fallback-msg { color: #fff; font-size: 1rem; font-weight: 500; }
+  .fallback-sub { font-size: .82rem; background: rgba(232,200,122,.12); border: 1px solid rgba(232,200,122,.3); padding: 6px 14px; border-radius: 20px; color: var(--accent); }
+  .now-playing { margin-top: 1.25rem; }
+  .now-playing .label { font-size: .72rem; text-transform: uppercase; letter-spacing: .12em; color: var(--accent); font-weight: 600; margin-bottom: .4rem; }
+  .now-playing h2 { font-size: 1.3rem; font-weight: 500; line-height: 1.3; }
+  .now-playing .meta { margin-top: .4rem; font-size: .85rem; color: var(--muted); }
+  .controls { display: flex; gap: 10px; margin-top: 1.25rem; }
+  .ctrl-btn { background: var(--surface); border: 1px solid var(--border); color: var(--text); border-radius: 8px; padding: .5rem 1.2rem; font-size: .85rem; cursor: pointer; font-family: inherit; transition: background .15s, border-color .15s; }
+  .ctrl-btn:hover { background: var(--surface2); border-color: var(--border-hover); }
+  .ctrl-btn.primary { background: var(--accent); color: #1a1200; border-color: var(--accent); font-weight: 600; }
+  .ctrl-btn.primary:hover { background: #f0d48a; }
+  .sidebar { border-left: 1px solid var(--border); padding: 1.5rem 0; overflow-y: auto; max-height: calc(100vh - 80px); position: sticky; top: 0; }
+  .sidebar-title { padding: 0 1.25rem 1rem; font-size: .72rem; text-transform: uppercase; letter-spacing: .12em; color: var(--muted); font-weight: 600; border-bottom: 1px solid var(--border); margin-bottom: .5rem; }
+  .video-item { display: flex; align-items: center; gap: 12px; padding: .75rem 1.25rem; cursor: pointer; transition: background .12s; border-left: 3px solid transparent; }
+  .video-item:hover { background: var(--surface); }
+  .video-item.active { background: var(--surface); border-left-color: var(--accent); }
+  .video-num { font-size: .75rem; color: var(--muted); min-width: 20px; text-align: center; font-weight: 500; }
+  .video-item.active .video-num { color: var(--accent); }
+  .thumb-wrap { width: 80px; height: 46px; border-radius: 6px; overflow: hidden; flex-shrink: 0; background: var(--surface2); position: relative; }
+  .thumb-wrap img { width: 100%; height: 100%; object-fit: cover; display: block; }
+  .play-icon { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; background: rgba(0,0,0,.35); opacity: 0; transition: opacity .15s; }
+  .video-item:hover .play-icon, .video-item.active .play-icon { opacity: 1; }
+  .play-icon svg { width: 18px; height: 18px; fill: #fff; }
+  .video-info { flex: 1; min-width: 0; }
+  .vtitle { font-size: .82rem; font-weight: 500; line-height: 1.35; color: var(--text); display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+  .video-item.active .vtitle { color: var(--accent); }
+  .blocked-badge { display: none; font-size: .65rem; background: rgba(196,84,58,.2); color: #e07060; border: 1px solid rgba(196,84,58,.3); padding: 2px 6px; border-radius: 4px; margin-top: 4px; width: fit-content; }
+  footer { text-align: center; padding: 2rem; color: var(--muted); font-size: .8rem; border-top: 1px solid var(--border); max-width: 1200px; margin: 0 auto; }
+  @media(max-width:600px){ header{padding:2rem 1rem 1.5rem} .player-area{padding:1rem} .sidebar{max-height:none;position:static} }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>Minha <span>Playlist</span></h1>
+  <p>9 vídeos</p>
+</header>
+
+<div class="layout">
+  <div class="player-area">
+    <div class="player-wrap">
+      <iframe id="yt-player"
+        src="https://www.youtube.com/embed/FQXQnCjM4DE?autoplay=0&rel=0&enablejsapi=1"
+        allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+        allowfullscreen></iframe>
+      <a id="fallback" class="fallback" href="#" target="_blank" rel="noopener">
+        <img id="fallback-bg" class="fallback-bg" src="" alt="">
+        <div class="fallback-content">
+          <div class="fallback-play">
+            <svg viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>
+          </div>
+          <div class="fallback-msg">Este vídeo não pode ser reproduzido aqui</div>
+          <div class="fallback-sub">Assistir no YouTube ↗</div>
+        </div>
+      </a>
+    </div>
+    <div class="now-playing">
+      <div class="label">Assistindo agora</div>
+      <h2 id="now-title">Vídeo 1</h2>
+      <p class="meta" id="now-meta">Vídeo 1 de 9</p>
+    </div>
+    <div class="controls">
+      <button class="ctrl-btn" onclick="prevVideo()">&#8592; Anterior</button>
+      <button class="ctrl-btn primary" onclick="nextVideo()">Próximo &#8594;</button>
+    </div>
+  </div>
+
+  <aside class="sidebar">
+    <div class="sidebar-title">Fila de vídeos</div>
+    <div id="playlist-list"></div>
+  </aside>
+</div>
+
+<footer>Playlist criada com &#10084; &mdash; todos os vídeos pertencem aos seus respectivos criadores no YouTube.</footer>
+
+<script>
+const videos = [
+  { id: "FQXQnCjM4DE", title: "Vídeo 1", blocked: false },
+  { id: "9slXNls4-_Q", title: "Vídeo 2", blocked: false },
+  { id: "MVcGmc79rOg", title: "Vídeo 3", blocked: false },
+  { id: "qiyoj3AfEEA", title: "Vídeo 4", blocked: false },
+  { id: "tgkbRPgDaY8", title: "Vídeo 5", blocked: false },
+  { id: "Qb9xJ2gFL4g", title: "Vídeo 6", blocked: false },
+  { id: "BPnL8VjwQx4", title: "Vídeo 7", blocked: false },
+  { id: "-QSjmA-2KKo", title: "Vídeo 8", blocked: false },
+  { id: "LKcoa0OJKc0", title: "Vídeo 9", blocked: false }
+];
+
+let current = 0;
+
+function renderList() {
+  document.getElementById('playlist-list').innerHTML = videos.map((v, i) => `
+    <div class="video-item ${i===current?'active':''}" onclick="playVideo(${i})">
+      <span class="video-num">${i+1}</span>
+      <div class="thumb-wrap">
+        <img src="https://img.youtube.com/vi/${v.id}/mqdefault.jpg" alt="${v.title}" loading="lazy">
+        <div class="play-icon"><svg viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg></div>
+      </div>
+      <div class="video-info">
+        <div class="vtitle">${v.title}</div>
+        <div class="blocked-badge" id="badge-${i}" style="${v.blocked?'display:block':''}">bloqueado</div>
+      </div>
+    </div>`).join('');
+}
+
+function showFallback(id) {
+  document.getElementById('yt-player').style.display = 'none';
+  const fb = document.getElementById('fallback');
+  fb.style.display = 'flex';
+  fb.href = `https://www.youtube.com/watch?v=${id}`;
+  document.getElementById('fallback-bg').src = `https://img.youtube.com/vi/${id}/maxresdefault.jpg`;
+  videos[current].blocked = true;
+  const b = document.getElementById('badge-'+current);
+  if (b) b.style.display = 'block';
+}
+
+function showPlayer() {
+  document.getElementById('yt-player').style.display = 'block';
+  document.getElementById('fallback').style.display = 'none';
+}
+
+function playVideo(index) {
+  current = index;
+  const v = videos[current];
+  document.getElementById('now-title').textContent = v.title;
+  document.getElementById('now-meta').textContent = `Vídeo ${current+1} de ${videos.length}`;
+  renderList();
+  if (v.blocked) { showFallback(v.id); return; }
+  showPlayer();
+  document.getElementById('yt-player').src = `https://www.youtube.com/embed/${v.id}?autoplay=1&rel=0&enablejsapi=1`;
+  window.scrollTo({ top: 0, behavior: 'smooth' });
+}
+
+function nextVideo() { if (current < videos.length-1) playVideo(current+1); }
+function prevVideo() { if (current > 0) playVideo(current-1); }
+
+window.addEventListener('message', function(e) {
+  if (!e.data) return;
+  let d = e.data;
+  if (typeof d === 'string') { try { d = JSON.parse(d); } catch(x) { return; } }
+  if (d.event === 'onError' && (d.info===101||d.info===150||d.info===153)) {
+    showFallback(videos[current].id);
+  }
+});
+
+videos.forEach((v, i) => {
+  fetch(`https://www.youtube.com/oembed?url=https://www.youtube.com/watch?v=${v.id}&format=json`)
+    .then(r => r.json())
+    .then(data => {
+      videos[i].title = data.title;
+      if (i === current) document.getElementById('now-title').textContent = data.title;
+      renderList();
+    }).catch(() => {});
+});
+
+renderList();
+</script>
+</body>
+</html>
